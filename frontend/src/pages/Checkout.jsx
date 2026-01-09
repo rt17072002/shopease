@@ -114,15 +114,17 @@ const Checkout = () => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-      <button
-        onClick={() => navigate(-1)}
-        className="flex justify-start text-blue-600 hover:underline text-sm sm:text-base"
-      >
-        ← Back
-      </button>
+
       <div className="lg:col-span-2">
         <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Checkout</h2>
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex justify-start text-blue-600 hover:underline text-sm sm:text-base font-semibold"
+            >
+              ← Back
+            </button>
+            Checkout</h2>
 
           <div>
             <div className="mb-4 sm:mb-6">
