@@ -149,7 +149,7 @@ const CheckoutPage = () => {
                 <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:sticky lg:top-4">
                     <h3 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">Order Summary</h3>
                     <div className="space-y-2 sm:space-y-3 mb-4">
-                        {cart.map(item => (
+                        {cartItems.map(item => (
                             <div key={item.id} className="flex justify-between text-xs sm:text-sm">
                                 <span className="truncate pr-2">{item.name} x{item.quantity}</span>
                                 <span className="whitespace-nowrap">₹{item.price * item.quantity}</span>

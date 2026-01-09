@@ -1,10 +1,22 @@
-import express from 'express';
-import { getAllOrders, placeOrder, updateStatus } from '../controllers/orderController.js';
+import express from "express";
+import {
+  placeNewOrder,
+  getAllOrders,
+  getOrderById,
+  updateStatusOfOrder,
+  deleteOrder,
+  placeOrderCod,
+  verifyRazorpayPayment,
+} from "../controllers/orderController.js";
 
-const orderRouter = express.Router();
+const router = express.Router();
 
-orderRouter.get("/",getAllOrders);
-orderRouter.put("/update-status",updateStatus);
-orderRouter.post("/place",placeOrder);
+router.post("/place", placeNewOrder);
+router.post("/cod", placeOrderCod);
+router.get("/", getAllOrders);
+router.get("/:id", getOrderById);
+router.post("/verify", verifyRazorpayPayment)
+router.put("/:id/status", updateStatusOfOrder);
+router.delete("/:id", deleteOrder);
 
-export default orderRouter;
+export default router;

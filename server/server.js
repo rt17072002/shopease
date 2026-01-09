@@ -1,29 +1,46 @@
+import dotenv from "dotenv/config";
+// dotenv.config();
 import express from "express";
-import cors from "cors";
-import "dotenv/config";
-import connectDB from "./config/db.js";
-import connectCloudinary from "./config/cloudinary.js";
-import productRouter from "./routes/productRoutes.js";
-import orderRouter from "./routes/orderRoutes.js";
-import cartRouter from "./routes/cartRoutes.js";
+import connectDB from "./configs/connectDB.js";
+import productRoutes from "./routes/productRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+import cors from "cors"
 
+await connectDB();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-await connectDB();
-await connectCloudinary();
+app.use(cors())
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "http://localhost:5174",
+//   "https://dope-shop.vercel.app",
+//   "https://dope-shop-admin.vercel.app"
+// ];
 
-app.use(cors());
-app.use(express.json());    
+// app.use(
+//   cors({
+//     origin: function (origin, callback) {
+//       if (!origin) return callback(null, true); // Postman, server-to-server
 
-app.get("/", (req, res) => {
-    res.send("Hello, World!");
-});
+//       if (allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//       } else {
+//         callback(new Error("Not allowed by CORS"));
+//       }
+//     },
+//     credentials: true
+//   })
+// );
 
-app.use("/api/products", productRouter);
-app.use("/api/orders", orderRouter);
-app.use("/api/cart", cartRouter);
+app.use(express.json());
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+
+app.use("/api/products", productRoutes);
+app.use("/api/orders", orderRoutes);
+
+app.use("/",(req,res)=>res.send("Api working"))
+
+// console.log("Razorpay key loaded:", process.env.RAZORPAY_KEY_ID);
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

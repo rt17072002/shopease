@@ -1,121 +1,190 @@
+import Razorpay from "razorpay";
 import Order from "../models/Order.js";
+import Product from "../models/Product.js";
+import "dotenv/config";
+import crypto from "crypto";
 
-export const getAllOrders = async (req, res) => {
-    try {
-        const orders = await Order.find({});
-        res.status(200).json({ success: true, data: orders });
-    } catch (error) {
-        console.error("Error fetching orders:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
-    }
-}
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
 
-// export const placeOrder = async (req, res) => {
-//     try {
-//         const orderData = req.body;
-//         res.json(orderData);
-//     } catch (error) {
-//         console.error("Error updating order status:", error);
-//         res.status(500).json({ success: false, message: "Server Error" });
-//     }
-// }
-
-export const placeOrder = async (req, res) => {
+export const placeOrderCod = async (req, res) => {
   try {
-    const { user, cart } = req.body;
+    const { customer, items } = req.body;
 
-    // Basic validation
-    if (!user || !cart || !Array.isArray(cart) || cart.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid order data",
-      });
+    if (!customer || !items || !items.length) {
+      return res.status(400).json({ message: "Invalid order data" });
     }
 
-    const totalItems = cart.reduce(
-      (sum, item) => sum + item.quantity,
-      0
-    );
+    let totalAmount = 0;
 
-    const totalAmount = cart.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
+    for (const item of items) {
+      const product = await Product.findById(item.id);
 
-    const orderItems = cart.map(item => ({
-      productId: item._id,
-      name: item.name,
-      price: item.price,
-      image: item.image,
-      quantity: item.quantity,
-    }));
+      if (!product || product.stock < item.q) {
+        return res.status(400).json({
+          message: `${product?.name || "Product"} out of stock`
+        });
+      }
 
-    const newOrder = new Order({
-      customer: user.name,
-      user: {
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        address: user.address,
-      },
-      items: totalItems,
-      total: totalAmount,
-      orderItems,
-      status: "Pending",
-      payment: "Pending",
+      // Deduct stock
+      product.stock -= item.q;
+      await product.save();
+
+      // Snapshot product details
+      item.name = product.name;
+      item.price = product.price;
+      item.product = product._id;
+
+
+      totalAmount += product.price * item.q;
+    }
+
+    const order = await Order.create({
+      customer,
+      items,
+      totalAmount,
+      paymentMethod: "COD",
+      paymentStatus: "Pending",
+      orderStatus: "Processing"
     });
-
-    await newOrder.save();
 
     res.status(201).json({
       success: true,
-      message: "Order placed successfully",
-      orderId: newOrder._id,
+      message: "Order placed successfully (Cash on Delivery)",
+      order
     });
+
   } catch (error) {
-    console.error("Place order error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    console.error("COD Order Error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 
-export const updateStatus = async (req, res) => {
-    try {
-        const { orderId, status } = req.body;
+export const placeNewOrder = async (req, res) => {
+  const { customer, items } = req.body;
+  console.log("ORDER BODY:", req.body);
 
-        if (!orderId || !status) {
-            return res.status(400).json({
-                success: false,
-                message: "Order ID or status missing",
-            });
-        }
+  // console.log({ customer, items });
 
-        const updatedOrder = await Order.findByIdAndUpdate(
-            orderId,
-            { status },
-            { new: true }
-        );
+  if (!customer || !items || !items.length) {
+    return res.status(400).json({ message: "Invalid order data" });
+  }
+  // return ;
 
-        if (!updatedOrder) {
-            return res.status(404).json({
-                success: false,
-                message: "Order not found",
-            });
-        }
+  let totalAmount = 0;
 
-        res.status(200).json({
-            success: true,
-            message: "Status updated!",
-            data: updatedOrder,
-        });
-    } catch (error) {
-        console.error("Error updating order status:", error);
-        res.status(500).json({
-            success: false,
-            message: "Server Error",
-        });
+  for (const item of items) {
+    console.log("CHECKING ITEM:", item);
+
+    const product = await Product.findById(item.id);
+    console.log("FOUND PRODUCT:", product);
+
+    if (!product || product.stock < item.q) {
+      return res.status(400).json({ message: "Product out of stock" });
     }
+    product.stock -= item.q;
+    await product.save();
+
+    item.name = product.name;
+    item.product = product._id;
+    item.price = product.price;
+    item.quantity = item.q;
+    totalAmount += product.price * item.q;
+  }
+
+  const razorpayOrder = await razorpay.orders.create({
+    amount: totalAmount * 100,
+    currency: "INR"
+  });
+
+  const order = await Order.create({
+    customer,
+    items,
+    totalAmount,
+    razorpay_order_id: razorpayOrder.id
+  });
+
+  console.log({ order, razorpayOrder });
+  res.json({ order, razorpayOrder });
+};
+
+export const verifyRazorpayPayment = async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    orderId
+  } = req.body;
+
+  const sign = razorpay_order_id + "|" + razorpay_payment_id;
+
+  const expectedSign = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(sign)
+    .digest("hex");
+
+  if (expectedSign !== razorpay_signature) {
+    return res.status(400).json({ success: false });
+  }
+
+  await Order.findByIdAndUpdate(orderId, {
+    paymentStatus: "Paid",
+    razorpay_payment_id
+  });
+
+  res.json({ success: true, orderId, razorpay_order_id });
+};
+
+export const getAllOrders = async (req, res) => {
+  const orders = await Order.find().sort({ createdAt: -1 });
+  res.json(orders);
+};
+
+export const getOrderById = async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ message: "Order not found" });
+  res.json(order);
+};
+
+export const updateStatusOfOrder = async (req, res) => {
+  // const {  paymentStatus } = req.body;
+  const { orderStatus } = req.body;
+
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    return res.status(404).json({ message: "Order not found" });
+  }
+
+  if (orderStatus) order.orderStatus = orderStatus;
+  // if (paymentStatus) order.paymentStatus = paymentStatus;
+
+  await order.save();
+
+  res.json({
+    message: "Order status updated",
+    order
+  });
+};
+
+export const deleteOrder = async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    return res.status(404).json({ message: "Order not found" });
+  }
+
+  // Restore stock
+  for (const item of order.items) {
+    const product = await Product.findById(item.product);
+    if (product) {
+      product.stock += item.q;
+      await product.save();
+    }
+  }
+
+  await order.deleteOne();
+
+  res.json({ message: "Order deleted successfully" });
 };

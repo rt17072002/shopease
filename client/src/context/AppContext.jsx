@@ -43,10 +43,11 @@ const AppContextProvider = ({ children }) => {
     const fetchProducts = async () => {
         try {
             const response = await axios.get(`${backendUrl}/api/products`);
-            if (response.data.success) {
-                setProducts(response.data.data);
-                console.log(response.data.data);
+            if (response.data) {
+                setProducts(response.data);
+                // console.log(response.data);
             }
+            // console.log(response);
         } catch (error) {
             console.error("Error fetching products:", error);
         }
